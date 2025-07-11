@@ -1,5 +1,4 @@
-\venv
-\data
-\misclassified
 \__pycache__
+\ckpts
+\data
 \wandb

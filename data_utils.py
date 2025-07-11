@@ -1,12 +1,13 @@
 import torch
-import os
-import tqdm
 from torch.utils.data import Dataset, random_split
 
-def train_val_split(dataset, val_size, seed):
-    val_size = int(0.2 * len(dataset))
+import tqdm
+import os
+
+def train_val_split(dataset, val_ratio):
+    val_size = int(val_ratio * len(dataset))
     train_size = len(dataset) - val_size
-    generator = torch.Generator().manual_seed(seed)
+    generator = torch.Generator().manual_seed(42)
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=generator)
     return train_dataset, val_dataset
 

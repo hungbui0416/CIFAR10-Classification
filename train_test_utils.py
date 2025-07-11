@@ -1,4 +1,5 @@
 import torch
+
 import tqdm
 import wandb
 
@@ -31,9 +32,9 @@ def train(epoch, loader, device, model, criterion, optimizer, scheduler, log_fre
     for step, (images, labels) in enumerate(tqdm.tqdm(loader, desc=f"Train epoch {epoch}")):
         images, labels = images.to(device, non_blocking=True), labels.to(device, non_blocking=True)
 
-        optimizer.zero_grad()
         logits = model(images)
         loss = criterion(logits, labels)
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
@@ -44,7 +45,8 @@ def train(epoch, loader, device, model, criterion, optimizer, scheduler, log_fre
 
         batch_log(step, loss.item(), optimizer, log_freq)
 
-    scheduler.step()
+    if scheduler:
+        scheduler.step()
 
     avg_loss = total_loss / total
     acc = 100. * correct / total
