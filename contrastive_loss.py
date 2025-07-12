@@ -3,27 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ContrastiveLoss(nn.Module):
-    def __init__(self, contrast_mode='scl', temperature=0.1):
+    def __init__(self, mode='scl', temperature=0.1):
         super().__init__()
-        self.contrast_mode = contrast_mode
+        self.mode = mode
         self.temperature = temperature
         self.eps = 1e-8
 
     def forward(self, projs, labels):
         device = projs.device
-        bsz = labels.shape[0]
-        nv = projs.shape[0] // bsz
+        bs = labels.shape[0]
+        v = projs.shape[0] // bs
         projs = F.normalize(projs, dim=-1)
 
-        if self.contrast_mode == 'scl':
-            labels = labels.contiguous().view(-1, 1).repeat(nv, 1)
-        elif self.contrast_mode == 'simclr':
-            labels = torch.arange(bsz, device=device).view(-1, 1).repeat(nv, 1)
+        if self.mode == 'scl':
+            labels = labels.contiguous().view(-1, 1).repeat(v, 1)
+        elif self.mode == 'simclr':
+            labels = torch.arange(bs, device=device).view(-1, 1).repeat(v, 1)
         else:
-            raise ValueError(f"Invalid contrast mode: {self.contrast_mode}")
+            raise ValueError(f"Invalid contrast mode: {self.mode}")
 
         label_mask = torch.eq(labels, labels.T).float().to(device)
-        anchor_mask = ~torch.eye(bsz * nv, dtype=torch.bool, device=device)
+        anchor_mask = ~torch.eye(bs * v, dtype=torch.bool, device=device)
         pos_mask = label_mask * anchor_mask
 
         sims = torch.matmul(projs, projs.T)

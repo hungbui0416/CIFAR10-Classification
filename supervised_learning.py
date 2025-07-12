@@ -4,15 +4,14 @@ import torch.optim as optim
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from torch.utils.data import DataLoader
-from torch.nn.parallel import DataParallel
-
-from data_utils import TransformedDataset, train_val_split
-from networks import CNN, ResNet18
-from train_test_utils import EarlyStopper, train, validate, epoch_log
 
 import argparse
 import os
 import wandb
+
+from data_utils import TransformedDataset, train_val_split
+from networks import CNN, ResNet18
+from train_test_utils import EarlyStopper, sl_train, sl_validate, sl_epoch_log
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -20,8 +19,8 @@ def parse_args():
     parser.add_argument('--workers', type=int, default=4, help='number of workers')
 
     parser.add_argument('--network', type=str, default='cnn', help='name of network')
-    parser.add_argument('--model_path', type=str, default='', help='path of pretrained model')
-    parser.add_argument('--projection_dim', type=int, default=128, help='projection dimension')
+    parser.add_argument('--model', type=str, default='', help='path to the pretrained model')
+    parser.add_argument('--projection', type=int, default=128, help='projection dimension')
     
     parser.add_argument('--lr', type=float, default=3e-4, help='learning rate')
     parser.add_argument('--wd', type=float, default=1e-4, help='weight decay')
@@ -73,8 +72,8 @@ def main():
     model_dir = f'./ckpts/sl_{args.network}.pth'
 
     if args.network == 'cnn':
-        if args.model_path:
-            model = CNN(num_classes=args.projection_dim).to(device)
+        if args.model:
+            model = CNN(num_classes=args.projection).to(device)
             model.load_state_dict(torch.load(args.model_path, map_location=device))
             for param in model.parameters():
                 param.requires_grad = False
@@ -83,10 +82,9 @@ def main():
         else:
             model = CNN(num_classes=10).to(device)
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
-        model = DataParallel(model)
     elif args.network == 'resnet18':
-        if args.model_path:
-            model = ResNet18(num_classes=args.projection_dim).to(device)
+        if args.model:
+            model = ResNet18(num_classes=args.projection).to(device)
             model.load_state_dict(torch.load(args.model_path, map_location=device))
             for param in model.parameters():
                 param.requires_grad = False
@@ -95,11 +93,9 @@ def main():
         else:
             model = ResNet18(num_classes=10).to(device)
             optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
-        model = DataParallel(model)
-    elif args.network not in ['cnn', 'resnet18']:
-        raise ValueError(f'Invalid network: {args.network}')
-    elif not os.path.exists(args.model_path):
-        raise FileNotFoundError(f'Model path does not exist: {args.model_path}')
+    else:
+        raise ValueError(f"Unknown network: {args.network}")
+    model = nn.DataParallel(model)
 
     # criterion, scheduler and early_stopper
     criterion = nn.CrossEntropyLoss()
@@ -120,9 +116,9 @@ def main():
 
     # train
     for epoch in range(1, args.epochs + 1):
-        train_loss, train_acc = train(epoch, train_loader, device, model, criterion, optimizer, scheduler, args.log_freq)
-        val_loss, val_acc = validate(epoch, val_loader, device, model, criterion)
-        epoch_log(epoch, args.epochs, train_loss, train_acc, val_loss, val_acc)
+        train_loss, train_acc = sl_train(epoch, train_loader, device, model, criterion, optimizer, scheduler, args.log_freq)
+        val_loss, val_acc = sl_validate(epoch, val_loader, device, model, criterion)
+        sl_epoch_log(epoch, args.epochs, train_loss, train_acc, val_loss, val_acc)
 
         if early_stopper and early_stopper.early_stop(val_loss):
             print('Early stop at epoch', epoch)

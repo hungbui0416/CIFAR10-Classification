@@ -4,12 +4,13 @@ from torch.utils.data import Dataset, random_split
 import tqdm
 import os
 
-def train_val_split(dataset, val_ratio):
-    val_size = int(val_ratio * len(dataset))
-    train_size = len(dataset) - val_size
-    generator = torch.Generator().manual_seed(42)
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=generator)
-    return train_dataset, val_dataset
+class MultiTransform:
+    def __init__(self, transform, num_transforms):
+        self.transform = transform
+        self.num_transforms = num_transforms
+
+    def __call__(self, x):
+        return [self.transform(x) for _ in range(self.num_transforms)]
 
 class TransformedDataset(Dataset):
     def __init__(self, dataset, transform):
@@ -22,6 +23,13 @@ class TransformedDataset(Dataset):
     def __getitem__(self, idx):
         x, y = self.dataset[idx]
         return self.transform(x), y
+    
+def train_val_split(dataset, val_ratio):
+    val_size = int(val_ratio * len(dataset))
+    train_size = len(dataset) - val_size
+    generator = torch.Generator().manual_seed(42)
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size], generator=generator)
+    return train_dataset, val_dataset
 
 def get_misclassified_images(model, loader, pil_transform):
     model.eval()
@@ -65,14 +73,6 @@ def save_misclassified_images(misclassified_dict, save_dir='./misclassified'):
             count += 1
             
         print(f"Saved {count} images to {folder_path}")
-
-class MultiTransform:
-    def __init__(self, transform, num_transforms):
-        self.transform = transform
-        self.num_transforms = num_transforms
-
-    def __call__(self, x):
-        return [self.transform(x) for _ in range(self.num_transforms)]
 
 class HardNegContrastiveDataset(Dataset):
     def __init__(self, dataset, pos_transform, hardneg_transform, hardneg_dict, num_hardnegs, num_randoms, random_transform):

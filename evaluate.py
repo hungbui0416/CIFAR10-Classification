@@ -1,21 +1,26 @@
-import argparse
 import torch
-from torchvision import datasets, transforms
+import torch.nn as nn
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 from torch.utils.data import DataLoader
-from torch import nn
-from train_test_utils import test
-from model import CNN
-from torch.nn.parallel import DataParallel
-from sklearn.metrics import classification_report, confusion_matrix
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix
+
+import argparse
+import os
+
+from networks import CNN, ResNet18
 
 def arg_parse():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, required=True)
-    parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--network', type=str, default='cnn', help='name of network')
+    parser.add_argument('--model', type=str, required=True, help='path to the trained model')
+    
+    parser.add_argument('--bs', type=int, default=1024, help='batch size')
+    parser.add_argument('--workers', type=int, default=4, help='number of workers')
     return parser.parse_args()
 
 def main():
@@ -29,13 +34,19 @@ def main():
     ])
 
     test_set = datasets.ImageFolder(root='./data/test', transform=transform)
-    loader = DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+    loader = DataLoader(test_set, batch_size=args.bs, shuffle=False, num_workers=args.workers, pin_memory=True)
 
     classes = test_set.classes
 
-    model = CNN(out_dim=10).to(device)
-    model = DataParallel(model)
-    model.load_state_dict(torch.load(f'./models/{args.model}.pth', map_location=device))
+    if args.network == 'cnn':
+        model = CNN(out_dim=len(classes)).to(device)
+    elif args.network == 'resnet18':
+        model = ResNet18(out_dim=len(classes)).to(device)
+    else:
+        raise ValueError(f"Unknown network: {args.network}")
+    model.load_state_dict(torch.load(args.model, map_location=device))
+    model = nn.DataParallel(model)
+    
     criterion = nn.CrossEntropyLoss()
 
     test_loss, test_acc, y_true, y_pred = test(loader, device, model, criterion)

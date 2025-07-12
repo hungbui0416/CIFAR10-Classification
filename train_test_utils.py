@@ -3,14 +3,14 @@ import torch
 import tqdm
 import wandb
 
-def batch_log(step, loss, optimizer, log_freq):
+def sl_batch_log(step, loss, optimizer, log_freq):
     if step % log_freq == 0:
         wandb.log({
             "train/loss": loss,
             "train/lr": optimizer.param_groups[0]['lr'],
         })
 
-def epoch_log(epoch, epochs, train_loss, train_acc, val_loss, val_acc):
+def sl_epoch_log(epoch, epochs, train_loss, train_acc, val_loss, val_acc):
     print(f"epoch [{epoch:2}/{epochs}] train_loss {train_loss:.4f} train_acc {train_acc:.2f}%")
     print(f"epoch [{epoch:2}/{epochs}] val_loss {val_loss:.4f} val_acc {val_acc:.2f}%")
     
@@ -22,7 +22,7 @@ def epoch_log(epoch, epochs, train_loss, train_acc, val_loss, val_acc):
         "epoch": epoch
     })
 
-def train(epoch, loader, device, model, criterion, optimizer, scheduler, log_freq):
+def sl_train(epoch, loader, device, model, criterion, optimizer, scheduler, log_freq):
     model.train()
     
     total_loss = 0
@@ -43,7 +43,7 @@ def train(epoch, loader, device, model, criterion, optimizer, scheduler, log_fre
         correct += predicted.eq(labels).sum().item()
         total += labels.size(0)
 
-        batch_log(step, loss.item(), optimizer, log_freq)
+        sl_batch_log(step, loss.item(), optimizer, log_freq)
 
     if scheduler:
         scheduler.step()
@@ -52,7 +52,7 @@ def train(epoch, loader, device, model, criterion, optimizer, scheduler, log_fre
     acc = 100. * correct / total
     return avg_loss, acc
 
-def validate(epoch, loader, device, model, criterion):
+def sl_validate(epoch, loader, device, model, criterion):
     model.eval()
     
     total_loss = 0
@@ -87,7 +87,7 @@ class EarlyStopper:
     def early_stop(self, val_loss):
         if val_loss < self.min_val_loss:
             print(f'best_val_loss {val_loss:.4f}, save model!')
-            torch.save(self.model.state_dict(), self.model_dir)
+            torch.save(self.model.module.state_dict(), self.model_dir)
             self.min_val_loss = val_loss
             self.counter = 0
         elif val_loss > (self.min_val_loss + self.min_delta):
@@ -165,7 +165,8 @@ def cl_train(epoch, loader, device, model, criterion, optimizer, scheduler, log_
 
         cl_batch_log(step, log_freq, loss.item(), optimizer)
 
-    scheduler.step()
+    if scheduler:
+        scheduler.step()
 
     avg_loss = total_loss / total
     return avg_loss
